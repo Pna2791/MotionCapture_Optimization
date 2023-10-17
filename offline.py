@@ -144,8 +144,8 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
             viz_point(viz_locs[sbp_i, :], sbp_i)
         viz_locs_seq.append(viz_locs)
 
-        if RENDER:
-            time.sleep(1. / 180)
+        # if RENDER:
+        #     time.sleep(1. / 180)
 
     # throw away first "trim" predictions (our algorithm gives dummy values)... append dummy value in the end.
     viz_locs_seq = np.array(viz_locs_seq)
@@ -215,8 +215,8 @@ def test_run_ours_gpt_v4_with_c_rt(
                 terrain=h_b_id
             )
 
-        if RENDER:
-            time.sleep(1. / 180)
+        # if RENDER:
+        #     time.sleep(1. / 180)
 
     # throw away first "trim" predictions (our algorithm gives dummy values)... append dummy value in the end.
     viz_locs_seq = np.array(viz_locs_seq)
@@ -312,8 +312,6 @@ pb_client, c1, c2, VIDs, h_id, h_b_id = init_viz(char_info,
 
 
 test_file = 'data\preprocessed_DIP_IMU_v1\dipimu_s_03_01.pkl'
-t_start = time.time()
-
 data = pickle.load(open(test_file, "rb"))
 X = data['imu']
 Y = data['nimble_qdq']
@@ -334,6 +332,9 @@ Y = Y[start: end, :]
 Y[:, 2] += 0.05       # move motion root 5 cm up
 
 
+t_start = time.time()
+n_length = len(X)
 ours, C, ours_c_viz = run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, c1)
 
 print('Duration:', time.time() - t_start)
+print('fps:', n_length/(time.time() - t_start))
