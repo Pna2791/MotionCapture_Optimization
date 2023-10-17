@@ -8,8 +8,12 @@ import random
 import re
 import time
 from datetime import datetime
-from typing import Union, Tuple
 
+from typing import Dict, Union, Tuple
+import time
+import constants as cst
+import onnx
+import onnxruntime
 import imageio
 import numpy as np
 from fairmotion.ops import conversions
@@ -39,13 +43,13 @@ imu_readings_dirs_OUR_format = [
 ]
 
 
-torch.set_num_threads(1)
+"""torch.set_num_threads(1)
 np.set_printoptions(threshold=10_000, precision=10)
-torch.set_printoptions(threshold=10_000, precision=10)
+torch.set_printoptions(threshold=10_000, precision=10)"""
 
 
 parser = argparse.ArgumentParser(description='Run our model and related works models')
-parser.add_argument('--ours_path_name_kin', type=str, default="output/model-with-dip9and10-cpu.pt",
+parser.add_argument('--ours_path_name_kin', type=str, default="output/model-with-dip9and10-cpu-dynamic.onnx",
                     help='')
 parser.add_argument('--test_len', type=int, default=30000,
                     help='')
@@ -84,26 +88,12 @@ GRID_NUM = int(MAP_BOUND/cst.GRID_SIZE) * 2
 
 
 def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.ndarray):
-    def load_model(name):
-        from simple_transformer_with_state import TF_RNN_Past_State
-        input_channels_imu = 6 * (9 + 3)
-        if USE_5_SBP:
-            output_channels = 18 * 6 + 3 + 20
-        else:
-            output_channels = 18 * 6 + 3 + 8
+    def load_model(onnx_path):
+        onnx_model = onnx.load(onnx_path)
+        ort_session = onnxruntime.InferenceSession(onnx_path,providers = ['CPUExecutionProvider'])
+        return ort_session
 
-        model = TF_RNN_Past_State(
-            input_channels_imu, output_channels,
-            rnn_hid_size=512,
-            tf_hid_size=1024, tf_in_dim=256,
-            n_heads=16, tf_layers=4,
-            dropout=0.0, in_dropout=0.0,
-            past_state_dropout=0.8,
-            with_acc_sum=WITH_ACC_SUM
-        )
-        model.load_state_dict(torch.load(name))
-        return model
-
+    model_name = args.ours_path_name_kin
     m = load_model(model_name)
 
     # ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt(char, s_gt, imu, m, 40)
@@ -135,17 +125,16 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
 
     for t in range(0, m_len-1):
         res = rt_runner.step(imu[t, :], s_traj_pred[t, :3])
-        in_imu = res.get('in_imu')  # Assuming 'in_imu' is a key in the returned dictionary
+        """in_imu = res.get('in_imu')  # Assuming 'in_imu' is a key in the returned dictionary
         in_s_and_c = res.get('in_s_and_c')  # Assuming 'in_s_and_c' is a key in the returned dictionary
 
         # Save in_imu
         with open(f'input/in_imu_{t}.pkl', 'wb') as file:
             pickle.dump(in_imu, file)
 
-        # Save in_s_and_c
+        #Save in_s_and_c
         with open(f'input/in_s_and_c_{t}.pkl', 'wb') as file:
-            pickle.dump(in_s_and_c, file)
-
+            pickle.dump(in_s_and_c, file)"""
         s_traj_pred[t + 1, :] = res['qdq']
         c_traj_pred[t + 1, :] = res['ct']
 
@@ -324,7 +313,7 @@ pb_client, c1, c2, VIDs, h_id, h_b_id = init_viz(char_info,
 test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
 
 data = pickle.load(open(test_file, "rb"))
-frames = 50
+frames = 5000
 X = data['imu'][:frames]
 Y = data['nimble_qdq'][:frames]
 
@@ -344,10 +333,10 @@ Y = Y[start: end, :]
 Y[:, 2] += 0.05       # move motion root 5 cm up
 
 t_start = time.time()
-n_length = len(X) #16427
+n_length = len(X)
 ours, C, ours_c_viz = run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, c1)
 
-print('Duration:', time.time() - t_start) # 236.84416246414185 - core model
-print('FPS:', n_length/(time.time()-t_start)) # 69.357842005 - core model
+print('Duration:', time.time() - t_start)
+print('FPS:', n_length/(time.time()-t_start))
 
-#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
+#githubcode = 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

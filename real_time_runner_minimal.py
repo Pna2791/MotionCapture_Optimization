@@ -148,14 +148,29 @@ class RTRunnerMin:
         len_imu = in_imu.shape[0]
         in_s_and_c = np.array(self.s_and_c_in_buffer[-len_imu:])
 
+
+
+        #x_imu = torch.tensor(in_imu).float().unsqueeze(0)
+        #x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0)
+
+        #x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
+        #x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
+
         x_imu = torch.tensor(in_imu).float().unsqueeze(0)
         x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0)
+        x_imu = x_imu.cpu().numpy()
+        x_s_and_c = x_s_and_c.cpu().numpy()
+
+        #y = self.model(x_imu, x_s_and_c).cpu()
+        # y.size = torch.Size([1, 40, 131]) <class 'torch.Tensor'>
+        ort_inputs = {'imu_input': x_imu, 's_input': x_s_and_c}
 
         t_start = time.time()
-        y = self.model(x_imu, x_s_and_c).cpu()
+        ort_outputs = self.model.run(None, ort_inputs)
         self.duration = self.duration + time.time() - t_start
 
-        st_2axis_root_v_and_c = y.squeeze(0)[-1, :].detach().numpy()
+        y = ort_outputs[0]
+        st_2axis_root_v_and_c = y.squeeze(0)[-1, :]
 
         st_2axis_root_v, c_t, confs = self.smooth_and_split_s_c(st_2axis_root_v_and_c)
 

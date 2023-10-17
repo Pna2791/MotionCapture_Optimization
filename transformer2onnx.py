@@ -26,7 +26,7 @@ input_channels_imu = 6 * (9 + 3)+18
 output_channels = 18 * 6 + 3 + 20
 
 batch_size = 1
-seq_len = 72
+seq_len = 40
 # dummy
 dummy_input_imu = torch.randn(batch_size, seq_len, input_channels_imu)
 dummy_input_s = torch.randn(batch_size, seq_len, output_channels)

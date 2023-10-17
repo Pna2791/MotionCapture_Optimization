@@ -43,7 +43,7 @@ for t in range(41, m_len-1):
         duration = time.time() - t_start
         sum_duration+=duration
 
-n_length = m_len-5 #3000-5
+n_length = m_len-41 #3000-5
 print('Duration:', sum_duration) # 236.84416246414185 - core model
 print('FPS:', n_length/sum_duration) # 69.357842005 - core model
 
