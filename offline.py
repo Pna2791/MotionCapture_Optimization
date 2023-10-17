@@ -118,7 +118,7 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
         imu: np.array,
         m: nn.Module,
         max_win_len: int
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray,float]:
 
     # use real time runner with offline data
     rt_runner = RTRunnerMin(
@@ -135,6 +135,16 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
 
     for t in range(0, m_len-1):
         res = rt_runner.step(imu[t, :], s_traj_pred[t, :3])
+        in_imu = res.get('in_imu')  # Assuming 'in_imu' is a key in the returned dictionary
+        in_s_and_c = res.get('in_s_and_c')  # Assuming 'in_s_and_c' is a key in the returned dictionary
+
+        # Save in_imu
+        with open(f'input/in_imu_{t}.pkl', 'wb') as file:
+            pickle.dump(in_imu, file)
+
+        # Save in_s_and_c
+        with open(f'input/in_s_and_c_{t}.pkl', 'wb') as file:
+            pickle.dump(in_s_and_c, file)
 
         s_traj_pred[t + 1, :] = res['qdq']
         c_traj_pred[t + 1, :] = res['ct']
@@ -167,7 +177,7 @@ def test_run_ours_gpt_v4_with_c_rt(
         imu: np.array,
         m: nn.Module,
         max_win_len: int
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray,float]:
 
     global h_id, h_b_id
 
@@ -311,12 +321,12 @@ pb_client, c1, c2, VIDs, h_id, h_b_id = init_viz(char_info,
 
 
 
-test_file = 'data\preprocessed_DIP_IMU_v1\dipimu_s_03_01.pkl'
-t_start = time.time()
+test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
 
 data = pickle.load(open(test_file, "rb"))
-X = data['imu']
-Y = data['nimble_qdq']
+frames = 50
+X = data['imu'][:frames]
+Y = data['nimble_qdq'][:frames]
 
 # to make all motion equal in stat compute, and run faster
 if Y.shape[0] > TEST_LEN:
@@ -333,7 +343,10 @@ Y = Y[start: end, :]
 # translation errors are computed from displacement not absolute Y
 Y[:, 2] += 0.05       # move motion root 5 cm up
 
-
+t_start = time.time()
+n_length = len(X) #16427
 ours, C, ours_c_viz = run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, c1)
 
-print('Duration:', time.time() - t_start)
+print('Duration:', time.time() - t_start) # 236.84416246414185 - core model
+print('FPS:', n_length/(time.time()-t_start)) # 69.357842005 - core model
+

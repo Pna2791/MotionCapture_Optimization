@@ -2,8 +2,9 @@
 # Copyright (c) Stanford University
 
 from typing import Dict, Union, Tuple
-
+import pickle
 import numpy as np
+import time
 import torch
 from fairmotion.ops import conversions
 
@@ -52,7 +53,8 @@ class RTRunnerMin:
         self.IMU_n_smooth = cst.IMU_n_smoooth           # 5 + 1 + 5 frames running average, past to future
         self.win_l = cst.ACC_MOVING_AVE_LEN
         self.max_input_l = max_input_l
-
+        self.duration = 0
+        self.frames =500
         # postprocessing smoothing filter
         self.coeff = 0.6 ** np.arange(6)[::-1]
 
@@ -125,9 +127,12 @@ class RTRunnerMin:
         if len(self.smoothed_imu_buffer) < 1:
             return {"qdq": self.s_init,
                     "viz_locs": np.ones((5, 3)) * 100.0,
-                    "ct": np.zeros(self.n_sbps * 4)}
+                    "ct": np.zeros(self.n_sbps * 4),
+                    "in_imu:": np.zeros((40, 90)),
+                    "in_s_and_c:": np.zeros((40,131))}
 
         assert len(self.s_and_c_in_buffer) == len(self.smoothed_imu_buffer)
+
         in_imu = np.array(self.smoothed_imu_buffer[-self.max_input_l:])     # max length 40
         in_imu = imu_rotate_to_local(in_imu)
 
@@ -146,7 +151,10 @@ class RTRunnerMin:
         x_imu = torch.tensor(in_imu).float().unsqueeze(0)
         x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0)
 
+        t_start = time.time()
         y = self.model(x_imu, x_s_and_c).cpu()
+        self.duration = self.duration + time.time() - t_start
+
         st_2axis_root_v_and_c = y.squeeze(0)[-1, :].detach().numpy()
 
         st_2axis_root_v, c_t, confs = self.smooth_and_split_s_c(st_2axis_root_v_and_c)
@@ -195,6 +203,11 @@ class RTRunnerMin:
 
         self.record_state_aa_and_c(s_t, c_t)
 
-        return {"qdq": np.array(s_t),
-                "viz_locs": self.c_locs,  # broadcast
-                "ct": c_t}
+        result_dict = {
+            'qdq': np.array(s_t),
+            'viz_locs': self.c_locs,
+            'ct': c_t,
+            'in_imu': np.array(in_imu),
+            'in_s_and_c': np.array(in_s_and_c)
+        }
+        return result_dict

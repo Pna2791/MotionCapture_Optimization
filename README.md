@@ -32,7 +32,7 @@ Licensed under the CC-BY-NC-4.0 License
 
 5.Install pytorch with CUDA (only tested with the following version, should work with other versions though):
 
-```conda install pytorch==1.7.1 cudatoolkit=10.2 -c pytorch``` 	(check pytorch website for your favorite version)
+```conda install pytorch==1.7.1 cudatoolkit=10.2 -c pytorch -c conda-forge``` 	(check pytorch website for your favorite version)
 
 6.Install our fork of the Fairmotion library, at a location you prefer:
 ```
