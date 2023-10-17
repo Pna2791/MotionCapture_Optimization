@@ -350,3 +350,4 @@ ours, C, ours_c_viz = run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, 
 print('Duration:', time.time() - t_start) # 236.84416246414185 - core model
 print('FPS:', n_length/(time.time()-t_start)) # 69.357842005 - core model
 
+#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
