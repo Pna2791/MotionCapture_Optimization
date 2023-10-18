@@ -85,7 +85,7 @@ from provider import IMUSet
 def get_mean_readings_3_sec():
     counter = 0
     mean_buffer = []
-    while counter <= FREQ * 3:
+    while counter < FREQ * 3:
         mean_buffer.append(imu_set.current_reading())
         counter += 1
 
@@ -180,8 +180,10 @@ if __name__ == '__main__':
     last_root_pos = s_init_T_pose[:3]     # assume always start from (0,0,0.9)
 
     print('\tFinish.\nStart estimating poses. Press q to quit')
-
+    
+    logs = []
     RB_and_acc_t = get_transformed_current_reading()
+    logs.append(RB_and_acc_t)
     # rt_runner.record_raw_imu(RB_and_acc_t)
     if is_recording:
         record_buffer = RB_and_acc_t.reshape(1, -1)
@@ -189,6 +191,7 @@ if __name__ == '__main__':
 
     while imu_set.available():
         RB_and_acc_t = get_transformed_current_reading()
+        logs.append(RB_and_acc_t)
 
         # t does not matter, not used
         res = rt_runner.step(RB_and_acc_t, last_root_pos, s_gt=None, c_gt=None, t=t)
@@ -219,4 +222,5 @@ if __name__ == '__main__':
         sys.stdout.flush()
         t += 1
 
+    torch.save(logs, 'data/logs.pt')
     print('Finish.')
