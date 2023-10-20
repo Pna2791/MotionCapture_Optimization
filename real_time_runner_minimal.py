@@ -128,9 +128,7 @@ class RTRunnerMin:
         if len(self.smoothed_imu_buffer) < 1:
             return {"qdq": self.s_init,
                     "viz_locs": np.ones((5, 3)) * 100.0,
-                    "ct": np.zeros(self.n_sbps * 4),
-                    "in_imu:": np.zeros((40, 90)),
-                    "in_s_and_c:": np.zeros((40,131))}
+                    "ct": np.zeros(self.n_sbps * 4)}
 
         assert len(self.s_and_c_in_buffer) == len(self.smoothed_imu_buffer)
 
@@ -157,10 +155,13 @@ class RTRunnerMin:
         #x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
         #x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
         self.transfer_time -= time.time()
-        x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
-        x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
-        x_imu = x_imu.cpu().numpy()
-        x_s_and_c = x_s_and_c.cpu().numpy()
+        #x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
+        #x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
+        #x_imu = x_imu.cpu().numpy()
+        #x_s_and_c = x_s_and_c.cpu().numpy()
+        x_imu = np.array(in_imu, dtype=np.float32)[np.newaxis, :]
+        x_s_and_c = np.array(in_s_and_c, dtype=np.float32)[np.newaxis, :]
+
         #y = self.model(x_imu, x_s_and_c).cpu()
         # y.size = torch.Size([1, 40, 131]) <class 'torch.Tensor'>
         ort_inputs = {'imu_input': x_imu, 's_input': x_s_and_c}
@@ -220,11 +221,7 @@ class RTRunnerMin:
 
         self.record_state_aa_and_c(s_t, c_t)
 
-        result_dict = {
+        return {
             'qdq': np.array(s_t),
             'viz_locs': self.c_locs,
-            'ct': c_t,
-            'in_imu': np.array(in_imu),
-            'in_s_and_c': np.array(in_s_and_c)
-        }
-        return result_dict
+            'ct': c_t}

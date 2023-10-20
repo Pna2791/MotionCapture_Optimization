@@ -89,7 +89,6 @@ GRID_NUM = int(MAP_BOUND/cst.GRID_SIZE) * 2
 
 def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.ndarray):
     def load_model(onnx_path):
-        onnx_model = onnx.load(onnx_path)
         ort_session = onnxruntime.InferenceSession(onnx_path,providers = ['CUDAExecutionProvider'])
         return ort_session
 
@@ -313,7 +312,7 @@ pb_client, c1, c2, VIDs, h_id, h_b_id = init_viz(char_info,
 test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
 
 data = pickle.load(open(test_file, "rb"))
-frames = 3000
+frames = 500
 X = data['imu'][:frames]
 Y = data['nimble_qdq'][:frames]
 
