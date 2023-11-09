@@ -55,7 +55,7 @@ parser.add_argument('--test_len', type=int, default=30000,
                     help='')
 parser.add_argument('--render', default=True, action='store_true',
                     help='')
-parser.add_argument('--compare_gt', action='store_true',
+parser.add_argument('--compare_gt', default=True, action='store_true',
                     help='')
 parser.add_argument('--seed', type=int, default=42,
                     help='')
@@ -96,7 +96,7 @@ def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.n
     model_name = args.ours_path_name_kin
     m = load_model(model_name)
 
-    # ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt(char, s_gt, imu, m, 40)
+    #ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt(char, s_gt, imu, m, 40)
     ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt_minimal(char, s_gt, imu, m, 40)
 
     return ours_out, c_out, viz_locs_out
@@ -143,8 +143,6 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
             viz_point(viz_locs[sbp_i, :], sbp_i)
         viz_locs_seq.append(viz_locs)
 
-        if RENDER:
-            time.sleep(1. / 180)
 
     # throw away first "trim" predictions (our algorithm gives dummy values)... append dummy value in the end.
     viz_locs_seq = np.array(viz_locs_seq)
@@ -214,8 +212,6 @@ def test_run_ours_gpt_v4_with_c_rt(
                 terrain=h_b_id
             )
 
-        if RENDER:
-            time.sleep(1. / 180)
 
     # throw away first "trim" predictions (our algorithm gives dummy values)... append dummy value in the end.
     viz_locs_seq = np.array(viz_locs_seq)
@@ -259,8 +255,6 @@ def viz_2_trajs_and_return_fk_records_with_sbp(
             for sbp_i in range(cur_c_viz.shape[0]):
                 viz_point(cur_c_viz[sbp_i, :], sbp_i)
 
-        if gui:
-            time.sleep(1. / 180)
 
     return traj1[start_t: m_len-end_t], traj2[start_t: m_len-end_t], np.array(pq_g_1_s), np.array(pq_g_2_s)
 
@@ -309,11 +303,18 @@ pb_client, c1, c2, VIDs, h_id, h_b_id = init_viz(char_info,
                                                  viz_h_map=args.viz_terrain)
 
 
+gt_list = []
+ours_list = []
+ours_c_list = []
+ours_c_viz_list = []
+tp_list = []
+dip_list = []
+test_files_included = []
+
 
 test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
-
 data = pickle.load(open(test_file, "rb"))
-frames = 5000
+frames = 500
 X = data['imu'][:frames]
 Y = data['nimble_qdq'][:frames]
 
@@ -331,12 +332,53 @@ Y = Y[start: end, :]
 # for clearer visualization, amass data not calibrated well wrt floor
 # translation errors are computed from displacement not absolute Y
 Y[:, 2] += 0.05       # move motion root 5 cm up
+gt_list.append(Y)
 
 t_start = time.time()
 n_length = len(X)
 ours, C, ours_c_viz = run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, c1)
-
 print('Duration:', time.time() - t_start)
 print('FPS:', n_length/(time.time()-t_start))
+#return ours_out, c_out, viz_locs_out
+ours_list.append(ours)
+ours_c_viz_list.append(ours_c_viz)
 
-#githubcode = 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
+if args.compare_gt:
+    with open("test-output-tmp.pkl", "wb") as handle:
+        pickle.dump({"gt_list": gt_list,
+                     "ours_list": ours_list,
+                     "tp_list": tp_list,
+                     "dip_list": dip_list},
+                    handle, protocol=pickle.HIGHEST_PROTOCOL)
+losses_angle = []
+losses_j_pos = []
+losses_2s_root = []
+losses_5s_root = []
+losses_10s_root = []
+losses_jerk_max = []
+losses_jerk_root = []
+for i in range(len(gt_list)):
+    traj_1 = post_processing_our_model(c1, gt_list[i])
+    traj_2 = post_processing_our_model(c1, ours_list[i])
+
+    ours_c_viz = ours_c_viz_list[i] if len(ours_c_viz_list) > 0 else None
+    res_tuple = viz_2_trajs_and_return_fk_records_with_sbp(
+        c2, c1, traj_1, traj_2, 30, 6, RENDER, ours_c_viz)  # first 0.5s uninteresting
+
+    losses_angle.append(loss_angle(*res_tuple))
+    losses_j_pos.append(loss_j_pos(*res_tuple))
+    losses_2s_root.append(loss_root_dist_pos(*res_tuple, t=2.0))
+    losses_5s_root.append(loss_root_dist_pos(*res_tuple, t=5.0))
+    losses_10s_root.append(loss_root_dist_pos(*res_tuple, t=10.0))
+    losses_jerk_max.append(loss_max_jerk(*res_tuple))
+    losses_jerk_root.append(loss_root_jerk(*res_tuple))
+
+print(np.mean(losses_angle))
+print(np.mean(losses_j_pos))
+print(np.mean(losses_2s_root))
+print(np.mean(losses_5s_root))
+print(np.mean(losses_10s_root))
+print(np.mean(losses_jerk_max))
+print(np.mean(losses_jerk_root))
+
+#githubcode = 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
