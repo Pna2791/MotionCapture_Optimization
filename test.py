@@ -107,58 +107,7 @@ def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.n
     m = load_model(model_name)
 
     ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt(char, s_gt, imu, m, 40)
-    # ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt_minimal(char, s_gt, imu, m, 40)
-
     return ours_out, c_out, viz_locs_out
-
-
-def test_run_ours_gpt_v4_with_c_rt_minimal(
-        char: SimAgent,
-        s_gt: np.array,
-        imu: np.array,
-        m: nn.Module,
-        max_win_len: int
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-
-    # use real time runner with offline data
-    rt_runner = RTRunnerMin(
-        char, m, max_win_len, s_gt[0],
-        with_acc_sum=WITH_ACC_SUM,
-    )
-
-    m_len = imu.shape[0]
-    s_traj_pred = np.zeros((m_len, cst.n_dofs * 2))
-    s_traj_pred[0] = s_gt[0]
-
-    c_traj_pred = np.zeros((m_len, rt_runner.n_sbps * 4))
-    viz_locs_seq = [np.ones((rt_runner.n_sbps, 3)) * 100.0]
-
-    for t in range(0, m_len-1):
-        res = rt_runner.step(imu[t, :], s_traj_pred[t, :3])
-
-        s_traj_pred[t + 1, :] = res['qdq']
-        c_traj_pred[t + 1, :] = res['ct']
-
-        viz_locs = res['viz_locs']
-        for sbp_i in range(viz_locs.shape[0]):
-            viz_point(viz_locs[sbp_i, :], sbp_i)
-        viz_locs_seq.append(viz_locs)
-
-        # if RENDER:
-        #     time.sleep(1. / 180)
-
-    # throw away first "trim" predictions (our algorithm gives dummy values)... append dummy value in the end.
-    viz_locs_seq = np.array(viz_locs_seq)
-    assert len(viz_locs_seq) == len(s_traj_pred)
-
-    # +2 because post-processing moving average filter effectively introduce a bit more delay
-    trim = rt_runner.IMU_n_smooth + 2
-    s_traj_pred[0:-trim, :] = s_traj_pred[trim:, :]
-    s_traj_pred[-trim:, :] = s_traj_pred[-trim-1, :]
-    viz_locs_seq[0:-trim, :, :] = viz_locs_seq[trim:, :, :]
-    viz_locs_seq[-trim:, :, :] = viz_locs_seq[-trim-1, :, :]
-
-    return s_traj_pred, c_traj_pred, viz_locs_seq
 
 
 def test_run_ours_gpt_v4_with_c_rt(
@@ -173,7 +122,7 @@ def test_run_ours_gpt_v4_with_c_rt(
 
     # use real time runner with offline data
     rt_runner = RTRunner(
-        char, m, max_win_len, s_gt[0],
+        char, m, max_win_len, s_gt,
         map_bound=MAP_BOUND,
         grid_size=cst.GRID_SIZE,
         play_back_gt=False,
@@ -185,7 +134,7 @@ def test_run_ours_gpt_v4_with_c_rt(
     m_len = imu.shape[0]
     s_traj_pred = np.zeros((m_len, cst.n_dofs * 2))
     c_traj_pred = np.zeros((m_len, rt_runner.n_sbps * 4))
-    s_traj_pred[0] = s_gt[0]
+    s_traj_pred[0] = s_gt
 
     viz_locs_seq = [np.ones((rt_runner.n_sbps, 3)) * 100.0]
 
@@ -201,13 +150,6 @@ def test_run_ours_gpt_v4_with_c_rt(
     # Create a canvas to display your data
     canvas = tk.Canvas(window, width=400, height=600)
     canvas.pack()
-    root_rot = np.array([
-        [0, 0, 1],
-        [1, 0, 0],
-        [0, 1, 0],
-    ], dtype=np.float32
-    )
-    root_rot = np.linalg.inv(root_rot)
     
     for t in range(0, m_len-1):
         
@@ -224,7 +166,7 @@ def test_run_ours_gpt_v4_with_c_rt(
         )
         for i in range(6):
             # Create a Rotation object from the rotation matrix
-            r = Rotation.from_matrix(rot[i].dot(root_rot))
+            r = Rotation.from_matrix(rot[i])
 
             # Convert the rotation to Euler angles with 'XYZ' order
             euler_angles = np.degrees(r.as_euler('xyz'))
@@ -277,68 +219,6 @@ def test_run_ours_gpt_v4_with_c_rt(
                 terrain=h_b_id
             )
 
-        # if RENDER:
-        #     time.sleep(1. / 180)
-
-    # throw away first "trim" predictions (our algorithm gives dummy values)... append dummy value in the end.
-    viz_locs_seq = np.array(viz_locs_seq)
-
-    # +2 because post-processing moving average filter effectively introduce a bit more delay
-    trim = rt_runner.IMU_n_smooth + 2
-    s_traj_pred[0:-trim, :] = s_traj_pred[trim:, :]
-    s_traj_pred[-trim:, :] = s_traj_pred[-trim-1, :]
-    viz_locs_seq[0:-trim, :, :] = viz_locs_seq[trim:, :, :]
-    viz_locs_seq[-trim:, :, :] = viz_locs_seq[-trim-1, :, :]
-
-    return s_traj_pred, c_traj_pred, viz_locs_seq
-
-
-def viz_2_trajs_and_return_fk_records_with_sbp(
-        char1: SimAgent,
-        char2: SimAgent,
-        traj1: np.ndarray,
-        traj2: np.ndarray,
-        start_t: int,
-        end_t: int,
-        gui: bool,
-        seq_c_viz: Union[np.ndarray, None],
-) -> (np.ndarray, np.ndarray, np.ndarray, np.ndarray):
-
-    m_len = len(traj1)      # use first length if mismatch
-
-    pq_g_1_s = []
-    pq_g_2_s = []
-
-    for t in range(start_t, m_len-end_t):
-
-        pq_g_2 = viz_current_frame_and_store_fk_info_include_fixed(char2, traj2[t])
-        pq_g_1 = viz_current_frame_and_store_fk_info_include_fixed(char1, traj1[t])   # GT in grey
-
-        pq_g_1_s.append(pq_g_1)
-        pq_g_2_s.append(pq_g_2)
-
-        if seq_c_viz is not None:
-            cur_c_viz = seq_c_viz[t, :, :]
-            for sbp_i in range(cur_c_viz.shape[0]):
-                viz_point(cur_c_viz[sbp_i, :], sbp_i)
-
-        # if gui:
-            # time.sleep(1. / 180)
-
-    return traj1[start_t: m_len-end_t], traj2[start_t: m_len-end_t], np.array(pq_g_1_s), np.array(pq_g_2_s)
-
-
-def post_processing_our_model(
-        char: SimAgent,
-        ours_out: np.ndarray) -> np.ndarray:
-    poses_post = []
-    for pose in ours_out:
-        pose_post = our_pose_2_bullet_format(char, pose)
-        poses_post.append(pose_post.tolist())
-    poses_post = np.array(poses_post)
-
-    return poses_post
-
 
 def viz_point(x, ind):
     pb_client.resetBasePositionAndOrientation(
@@ -363,47 +243,24 @@ color = COLOR_OURS
 init_grid_np = np.random.uniform(-10.0, 10.0, (GRID_NUM, GRID_NUM))
 init_grid_list = list(init_grid_np.flatten())
 
-pb_client, c1, c2, VIDs, h_id, h_b_id = init_viz(char_info,
-                                                 init_grid_list,
-                                                 hmap_scale=cst.GRID_SIZE,
-                                                 gui=RENDER,
-                                                 compare_gt=args.compare_gt,
-                                                 color=color,
-                                                 viz_h_map=args.viz_terrain)
+pb_client, c1, c2, VIDs, h_id, h_b_id = init_viz(
+    char_info,
+    init_grid_list,
+    hmap_scale=cst.GRID_SIZE,
+    gui=RENDER,
+    compare_gt=args.compare_gt,
+    color=color,
+    viz_h_map=args.viz_terrain
+)
 
 
 
-test_file = 'data\preprocessed_DIP_IMU_v1\dipimu_s_03_01.pkl'
-data = pickle.load(open(test_file, "rb"))
-X = data['imu']
-Y = data['nimble_qdq']
-
-# to make all motion equal in stat compute, and run faster
-if Y.shape[0] > TEST_LEN:
-    rand_start = random.randrange(0, Y.shape[0] - TEST_LEN)
-    start = rand_start
-    end = rand_start + TEST_LEN
-else:
-    start = 0
-    end = Y.shape[0]
-
-start = 7500
-end = 15000
-X = X[start: end, :]
-Y = Y[start: end, :]
-# print(Y[0])
-# print(start, end)
-
-# X = X[:TEST_LEN]
-# Y = Y[:TEST_LEN]
-# for clearer visualization, amass data not calibrated well wrt floor
-# translation errors are computed from displacement not absolute Y
-Y[:, 2] += 0.05       # move motion root 5 cm up
-
-
+X = np.load('output/data.npy')
+Y = np.load('output/root.npy')
 t_start = time.time()
 n_length = len(X)
-ours, C, ours_c_viz = run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, c1)
+
+run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, c1)
 
 print('Duration:', time.time() - t_start)
 print('fps:', n_length/(time.time() - t_start))
