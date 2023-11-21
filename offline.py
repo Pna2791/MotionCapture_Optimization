@@ -26,6 +26,7 @@ from real_time_runner_minimal import RTRunnerMin
 import torch
 import os
 import argparse
+import tensorrt
 
 # make deterministic
 from data_utils import \
@@ -90,7 +91,17 @@ GRID_NUM = int(MAP_BOUND/cst.GRID_SIZE) * 2
 def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.ndarray):
     def load_model(onnx_path):
         onnx_model = onnx.load(onnx_path)
-        ort_session = onnxruntime.InferenceSession(onnx_path,providers = ['CPUExecutionProvider'])
+        providers = [
+    ('CUDAExecutionProvider', {
+        'device_id': 0,
+        'arena_extend_strategy': 'kNextPowerOfTwo',
+        'gpu_mem_limit': 2 * 1024 * 1024 * 1024,
+        'cudnn_conv_algo_search': 'EXHAUSTIVE',
+        'do_copy_in_default_stream': True,
+    })
+]
+        ort_session = onnxruntime.InferenceSession(onnx_path, providers=providers)
+
         return ort_session
 
     model_name = args.ours_path_name_kin
@@ -314,7 +325,7 @@ test_files_included = []
 
 test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
 data = pickle.load(open(test_file, "rb"))
-frames = 500
+frames = 3000
 X = data['imu'][:frames]
 Y = data['nimble_qdq'][:frames]
 

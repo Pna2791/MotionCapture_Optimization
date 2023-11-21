@@ -154,7 +154,6 @@ class RTRunnerMin:
 
         #x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
         #x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
-        self.transfer_time -= time.time()
         #x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
         #x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
         #x_imu = x_imu.cpu().numpy()
@@ -167,10 +166,6 @@ class RTRunnerMin:
         ort_inputs = {'imu_input': x_imu, 's_input': x_s_and_c}
 
         ort_outputs = self.model.run(None, ort_inputs)
-
-        self.transfer_time += time.time()
-
-        print(self.transfer_time)
 
         y = ort_outputs[0]
         st_2axis_root_v_and_c = y.squeeze(0)[-1, :]
