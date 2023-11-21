@@ -69,7 +69,7 @@ def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.n
 
     model_name = args.ours_path_name_kin
     m = load_model(model_name)
-    ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt_minimal(char, s_gt, imu, m, 120)
+    ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt_minimal(char, s_gt, imu, m, 60)
 
     return ours_out, c_out, viz_locs_out
 
