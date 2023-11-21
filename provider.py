@@ -4,6 +4,7 @@ import torch
 
 pi = np.pi
 FREQ = 60
+k_g = 1024
 
 # Based from TransPose github repo
 class IMUSet:
@@ -20,9 +21,9 @@ class IMUSet:
         
         self.X = X
         print("Define X:", X)
-        self.create_data()
+        # self.create_data()
         # self.our_data()
-        # self.wireless_data()
+        self.wireless_data()
         # self.single_wireless()
 
         self.count = 0
@@ -76,15 +77,17 @@ class IMUSet:
         X = self.X.copy()
 
         data_path = "../Hi229/data/AnhPN/"
-        for acc, quat in torch.load(data_path + "root.pt"):
+        for acc, quat in torch.load(data_path + "root1.pt"):
             rotation = conversions.Q2R(quat).reshape(9)
             X[:54] = np.tile(rotation, 6)
-            X[54:] = np.tile(acc/1000, 6)
+            X[54:] = np.tile(acc/k_g, 6)
             self.data.append(X.copy())
         
-        for acc, quat in torch.load(data_path + "2023-07-29 15-31.pt"):
+        file_name = open("../Hi229/data/AnhPN/last.txt").read()
+        print(file_name)
+        for acc, quat in torch.load(file_name):
             X[18:27] = conversions.Q2R(quat).reshape(9)
-            X[60:63] = acc/1000
+            X[60:63] = acc/k_g
             self.data.append(X.copy())
         
         print("Create data DONE")
@@ -93,24 +96,24 @@ class IMUSet:
         self.data = []
         X = self.X.copy()
 
-        data_path = "../Hi229/data/AnhPN/"
-        # for acc, quat in torch.load(data_path + "root_wireless.pt"):
-        for ind, acc, quat in torch.load(data_path + "2023-10-17 23-30.pt"):
-            for i in ind:
-                st = i*9
-                X[st:st+9] = conversions.Q2R(quat[i]).reshape(9)
-                X[0:9] = conversions.Q2R(quat[i]).reshape(9)
+        for ind, acc, quat in torch.load("../Hi229/data/AnhPN/root-wireless.pt"):
+            # for i in ind:
+            #     st = i*9
+            #     X[st:st+9] = conversions.Q2R(quat[i]).reshape(9)
+            #     # X[0:9] = conversions.Q2R(quat[i]).reshape(9)
 
-                st = i*3 + 54
-                X[st:st+3] = acc[i]
-            self.data.append(X.copy())
-
-            # rotation = conversions.Q2R(quat).reshape(9)
-            # X[:54] = np.tile(rotation, 6)
-            # X[54:] = np.tile(acc, 6)
+            #     st = i*3 + 54
+            #     X[st:st+3] = acc[i]
             # self.data.append(X.copy())
+
+            rotation = conversions.Q2R(quat[0]).reshape(9)
+            X[:54] = np.tile(rotation, 6)
+            X[54:] = np.tile(acc[0], 6)
+            self.data.append(X.copy())
         
-        for ind, acc, quat in torch.load(data_path + "2023-07-29 15-27.pt"):
+        file_name = open("../Hi229/data/AnhPN/last_wireless.txt").read()
+        print(file_name)
+        for ind, acc, quat in torch.load(file_name):
             for i in ind:
                 st = i*9
                 X[st:st+9] = conversions.Q2R(quat[i]).reshape(9)
@@ -125,17 +128,16 @@ class IMUSet:
         self.data = []
         X = self.X.copy()
 # ([2], [array([-0.036,  0.045,  1.018], dtype=float32)], [array([ 0.257, -0.008,  0.028,  0.966], dtype=float32)])
-        data_path = "../Hi229/data/AnhPN/"
-        # for acc, quat in torch.load(data_path + "root_wireless.pt"):
-        for ind, acc, quat in torch.load(data_path + "2023-10-17 23-41.pt"):
+
+        for ind, acc, quat in torch.load("../Hi229/data/AnhPN/root-wireless.pt"):
             i = ind[0]
             st = i*9
             X[st:st+9] = conversions.Q2R(quat[0]).reshape(9)
-            X[0:9] = conversions.Q2R(quat[0]).reshape(9)
+            # X[0:9] = conversions.Q2R(quat[0]).reshape(9)
 
             st = i*3 + 54
             X[st:st+3] = acc[0]
-            X[54:57] = acc[0]
+            # X[54:57] = acc[0]
             
             self.data.append(X.copy())
 
@@ -144,7 +146,9 @@ class IMUSet:
             # X[54:] = np.tile(acc, 6)
             # self.data.append(X.copy())
         
-        for ind, acc, quat in torch.load(data_path + "2023-10-17 23-42.pt"):
+        file_name = open("../Hi229/data/AnhPN/last_wireless.txt").read()
+        print(file_name)
+        for ind, acc, quat in torch.load(file_name):
             i = ind[0]
             st = i*9
             X[st:st+9] = conversions.Q2R(quat[0]).reshape(9)

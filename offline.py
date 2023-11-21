@@ -387,7 +387,7 @@ else:
     start = 0
     end = Y.shape[0]
 
-start = 7500
+start = 200
 end = 15000
 X = X[start: end, :]
 Y = Y[start: end, :]

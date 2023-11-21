@@ -23,8 +23,7 @@ is_recording = True     # always record imu every 15 sec
 record_buffer = None
 num_imus = 6
 
-process_frame = 40
-num_float_one_frame = num_imus * 7      # sent from Xsens
+process_frame = 60
 FREQ = int(1. / cst.DT)
 
 color = COLOR_OURS
@@ -85,9 +84,8 @@ from provider import IMUSet
 def get_mean_readings_3_sec():
     counter = 0
     mean_buffer = []
-    while counter < FREQ * 3:
+    for i in range(FREQ * 3):
         mean_buffer.append(imu_set.current_reading())
-        counter += 1
 
     return np.array(mean_buffer).mean(axis=0)
 
@@ -188,11 +186,64 @@ if __name__ == '__main__':
     if is_recording:
         record_buffer = RB_and_acc_t.reshape(1, -1)
     t = 1
+    import tkinter as tk
+    from scipy.spatial.transform import Rotation
+    XX = [100, 0, 200, 0, 200, 100]
+    YY = [300, 150, 150, 450, 450, 0]
+        
+        
+    window = tk.Tk()
+    window.title("Frame Display")
+
+    # Create a canvas to display your data
+    canvas = tk.Canvas(window, width=400, height=600)
+    canvas.pack()
 
     while imu_set.available():
         RB_and_acc_t = get_transformed_current_reading()
         logs.append(RB_and_acc_t)
 
+        frame = RB_and_acc_t
+        rot = frame[:54].reshape((6, 3, 3))
+        acc = frame[54:].reshape((6, 3))
+        # Display each matrix in the frame
+        canvas.delete("all")
+        canvas.create_text(
+            50,
+            10,
+            text=str(t),
+            font=5
+        )
+        for i in range(6):
+            # Create a Rotation object from the rotation matrix
+            r = Rotation.from_matrix(rot[i])
+
+            # Convert the rotation to Euler angles with 'XYZ' order
+            euler_angles = np.degrees(r.as_euler('xyz'))
+
+            for col in range(3):
+                for row in range(3):
+                    value = rot[i][row][col]
+                    canvas.create_text(
+                        XX[i] + col * 40 +50,
+                        YY[i] + row * 20 +30,
+                        text="{:.2f}".format(value),
+                        font=5
+                    )
+                canvas.create_text(
+                    XX[i] + col * 40 +50,
+                    YY[i] + 3 * 20 +30,
+                    text="{}".format(round(euler_angles[col])),
+                    font=5
+                )
+                canvas.create_text(
+                    XX[i] + col * 40 +50,
+                    YY[i] + 4 * 20 +30,
+                    text="{:.2f}".format(acc[i, col]),
+                    font=5
+                )
+            
+        window.update()
         # t does not matter, not used
         res = rt_runner.step(RB_and_acc_t, last_root_pos, s_gt=None, c_gt=None, t=t)
 
@@ -216,7 +267,7 @@ if __name__ == '__main__':
                 terrain=h_b_id
             )
 
-        clock.tick(FREQ)
+        # clock.tick(FREQ)
 
         sys.stdout.write(f"\r{imu_set.count}/{imu_set.length}")
         sys.stdout.flush()
