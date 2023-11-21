@@ -1,10 +1,8 @@
 # Copyright (c) Meta, Inc. and its affiliates.
 # Copyright (c) Stanford University
 
-from typing import Dict, Union, Tuple
-import pickle
+from typing import Dict
 import numpy as np
-import time
 import torch
 from fairmotion.ops import conversions
 
@@ -97,12 +95,9 @@ class RTRunnerMin:
         if len(self.s_c_smooth_buffer) >= win_l:
             s_smooth = np.array(self.s_c_smooth_buffer[-win_l:]) * self.coeff[:, np.newaxis]
             s_smooth = np.sum(s_smooth, axis=0) / np.sum(self.coeff)
-            # c_t = self.s_c_smooth_buffer[-4][-8:]
         else:
             s_smooth = st_2axis_and_c
-            # c_t = st_2axis_and_c[-8:]
 
-        # st_2axis_and_c 1D
         st_2axis = s_smooth[:-self.n_sbps*4]
         c_t = s_smooth[-self.n_sbps*4:]
 
@@ -147,29 +142,14 @@ class RTRunnerMin:
         len_imu = in_imu.shape[0]
         in_s_and_c = np.array(self.s_and_c_in_buffer[-len_imu:])
 
-
-
-        #x_imu = torch.tensor(in_imu).float().unsqueeze(0)
-        #x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0)
-
-        #x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
-        #x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
-        #x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
-        #x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
-        #x_imu = x_imu.cpu().numpy()
-        #x_s_and_c = x_s_and_c.cpu().numpy()
         x_imu = np.array(in_imu, dtype=np.float32)[np.newaxis, :]
         x_s_and_c = np.array(in_s_and_c, dtype=np.float32)[np.newaxis, :]
 
-        #y = self.model(x_imu, x_s_and_c).cpu()
-        # y.size = torch.Size([1, 40, 131]) <class 'torch.Tensor'>
         ort_inputs = {'imu_input': x_imu, 's_input': x_s_and_c}
-
         ort_outputs = self.model.run(None, ort_inputs)
 
         y = ort_outputs[0]
         st_2axis_root_v_and_c = y.squeeze(0)[-1, :]
-
         st_2axis_root_v, c_t, confs = self.smooth_and_split_s_c(st_2axis_root_v_and_c)
 
         root_v = st_2axis_root_v[-3:]
@@ -192,12 +172,6 @@ class RTRunnerMin:
             self.char, s_t_bullet, return_joint_frame_info=True
         )
         pg_prev = self.pq_g_buffer[-1]
-
-        # vel_res, self.c_locs = get_cur_step_root_correction_from_feet_constr(
-        #     self.char, pg_prev, pq_g, c_t[:8], DT * 1.0
-        # )
-        # # since we only used 2 SBPs, need 3 dummy ones to make self.c_locs always same size
-        # self.c_locs = np.concatenate((self.c_locs, np.ones((3, 3)) * 100.0), axis=0)
         vel_res, self.c_locs, raw_v_residues = get_cur_step_root_correction_from_all_constr(
             self.char, pg_prev, pq_g, c_t, cst.DT * 1.0, use_n_sbps=np.minimum(5, self.n_sbps)
         )
