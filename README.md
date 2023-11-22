@@ -49,6 +49,6 @@ pip install -e .
 
 ## Demo
 
-Run command below:
+We have created a special demo, to see it, run the command below::
 
 ```python offline.py```
