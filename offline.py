@@ -94,9 +94,13 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
 
     c_traj_pred = np.zeros((m_len, rt_runner.n_sbps * 4))
     viz_locs_seq = [np.ones((rt_runner.n_sbps, 3)) * 100.0]
-
+    
+    print("Pre", "==="*30)
+    import torch
+    data = torch.load('data/logs.pt')
     for t in range(0, m_len-1):
-        res = rt_runner.step(imu[t, :], s_traj_pred[t, :3])
+        res = rt_runner.step(data[t], s_traj_pred[t, :3])
+        # res = rt_runner.step(imu[t, :], s_traj_pred[t, :3])
         s_traj_pred[t + 1, :] = res['qdq']
         c_traj_pred[t + 1, :] = res['ct']
 
