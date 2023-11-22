@@ -96,20 +96,20 @@ class IMUSet:
         self.data = []
         X = self.X.copy()
 
-        for ind, acc, quat in torch.load("../Hi229/data/AnhPN/root-wireless.pt"):
-            # for i in ind:
-            #     st = i*9
-            #     X[st:st+9] = conversions.Q2R(quat[i]).reshape(9)
-            #     # X[0:9] = conversions.Q2R(quat[i]).reshape(9)
+        for ind, acc, quat in torch.load("../Hi229/data/AnhPN/root-wireless_2.pt"):
+            for i in ind:
+                st = i*9
+                quat[i, :2] = 0
+                X[st:st+9] = conversions.Q2R(quat[i]).reshape(9)
 
-            #     st = i*3 + 54
-            #     X[st:st+3] = acc[i]
-            # self.data.append(X.copy())
-
-            rotation = conversions.Q2R(quat[0]).reshape(9)
-            X[:54] = np.tile(rotation, 6)
-            X[54:] = np.tile(acc[0], 6)
+                st = i*3 + 54
+                X[st:st+3] = acc[i]
             self.data.append(X.copy())
+
+            # rotation = conversions.Q2R(quat[0]).reshape(9)
+            # X[:54] = np.tile(rotation, 6)
+            # X[54:] = np.tile(acc[0], 6)
+            # self.data.append(X.copy())
         
         file_name = open("../Hi229/data/AnhPN/last_wireless.txt").read()
         print(file_name)
