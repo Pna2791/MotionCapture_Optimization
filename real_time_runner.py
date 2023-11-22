@@ -431,6 +431,17 @@ class RTRunner:
             y = self.model(x_imu, x_s_and_c).cpu()
             st_2axis_root_v_and_c = y.squeeze(0)[-1, :].detach().numpy()
 
+            # if t == 1000:
+            #     torch.save(
+            #         {"x_imu": x_imu, "x_s_and_c": x_s_and_c, "y": y},
+            #         "output/1000.pt"
+            #     )
+            # if t == 1001:
+            #     torch.save(
+            #         {"x_imu": x_imu, "x_s_and_c": x_s_and_c, "y": y},
+            #         "output/1001.pt"
+            #     )
+                
             st_2axis_root_v, c_t, confs = self.smooth_and_split_s_c(st_2axis_root_v_and_c)
 
             root_v = st_2axis_root_v[-3:]

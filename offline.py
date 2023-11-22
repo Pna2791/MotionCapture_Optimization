@@ -47,7 +47,7 @@ torch.set_printoptions(threshold=10_000, precision=10)
 parser = argparse.ArgumentParser(description='Run our model and related works models')
 parser.add_argument('--ours_path_name_kin', type=str, default="output/model-with-dip9and10-cpu.pt",
                     help='')
-parser.add_argument('--test_len', type=int, default=30000,
+parser.add_argument('--test_len', type=int, default=3000,
                     help='')
 parser.add_argument('--render', default=True, action='store_true',
                     help='')
@@ -106,8 +106,8 @@ def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.n
 
     m = load_model(model_name)
 
-    # ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt(char, s_gt, imu, m, 40)
-    ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt_minimal(char, s_gt, imu, m, 40)
+    ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt(char, s_gt, imu, m, 40)
+    # ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt_minimal(char, s_gt, imu, m, 40)
 
     return ours_out, c_out, viz_locs_out
 
@@ -189,8 +189,70 @@ def test_run_ours_gpt_v4_with_c_rt(
 
     viz_locs_seq = [np.ones((rt_runner.n_sbps, 3)) * 100.0]
 
+    import tkinter as tk
+    from scipy.spatial.transform import Rotation
+    XX = [100, 0, 200, 0, 200, 100]
+    YY = [300, 150, 150, 450, 450, 0]
+        
+        
+    window = tk.Tk()
+    window.title("Frame Display")
+
+    # Create a canvas to display your data
+    canvas = tk.Canvas(window, width=400, height=600)
+    canvas.pack()
+    root_rot = np.array([
+        [0, 0, 1],
+        [1, 0, 0],
+        [0, 1, 0],
+    ], dtype=np.float32
+    )
+    root_rot = np.linalg.inv(root_rot)
+    
     for t in range(0, m_len-1):
-        res = rt_runner.step(imu[t, :], s_traj_pred[t, :3], t=t)
+        
+        frame = imu[t, :]
+        rot = frame[:54].reshape((6, 3, 3))
+        acc = frame[54:].reshape((6, 3))
+        # Display each matrix in the frame
+        canvas.delete("all")
+        canvas.create_text(
+            50,
+            10,
+            text=str(t),
+            font=5
+        )
+        for i in range(6):
+            # Create a Rotation object from the rotation matrix
+            r = Rotation.from_matrix(rot[i].dot(root_rot))
+
+            # Convert the rotation to Euler angles with 'XYZ' order
+            euler_angles = np.degrees(r.as_euler('xyz'))
+
+            for col in range(3):
+                for row in range(3):
+                    value = rot[i][row][col]
+                    canvas.create_text(
+                        XX[i] + col * 40 +50,
+                        YY[i] + row * 20 +30,
+                        text="{:.2f}".format(value),
+                        font=5
+                    )
+                canvas.create_text(
+                    XX[i] + col * 40 +50,
+                    YY[i] + 3 * 20 +30,
+                    text="{}".format(round(euler_angles[col])),
+                    font=5
+                )
+                canvas.create_text(
+                    XX[i] + col * 40 +50,
+                    YY[i] + 4 * 20 +30,
+                    text="{:.2f}".format(acc[i, col]),
+                    font=5
+                )
+            
+        window.update()
+        res = rt_runner.step(frame, s_traj_pred[t, :3], t=t)
 
         s_traj_pred[t + 1, :] = res['qdq']
         c_traj_pred[t + 1, :] = res['ct']
@@ -260,8 +322,8 @@ def viz_2_trajs_and_return_fk_records_with_sbp(
             for sbp_i in range(cur_c_viz.shape[0]):
                 viz_point(cur_c_viz[sbp_i, :], sbp_i)
 
-        if gui:
-            time.sleep(1. / 180)
+        # if gui:
+            # time.sleep(1. / 180)
 
     return traj1[start_t: m_len-end_t], traj2[start_t: m_len-end_t], np.array(pq_g_1_s), np.array(pq_g_2_s)
 
@@ -324,9 +386,16 @@ if Y.shape[0] > TEST_LEN:
 else:
     start = 0
     end = Y.shape[0]
+
+start = 200
+end = 15000
 X = X[start: end, :]
 Y = Y[start: end, :]
+# print(Y[0])
+# print(start, end)
 
+# X = X[:TEST_LEN]
+# Y = Y[:TEST_LEN]
 # for clearer visualization, amass data not calibrated well wrt floor
 # translation errors are computed from displacement not absolute Y
 Y[:, 2] += 0.05       # move motion root 5 cm up

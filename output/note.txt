@@ -1,0 +1,15 @@
+Rs_aligned_T_pose   = virtual rotation
+
+R_Gp_B0 = Rs_aligned_T_pose
+
+
+R_Gn_Gp = Ground rotation
+R_Gn_S0 = T_pose rotation
+
+R_Gp_S0 = R_Gn_Gp^T . R_Gn_S0
+R_B0_S0 = R_Gp_B0^T . R_Gp_S0
+
+
+R_Gn_St = Current IMU
+R_Gp_St = R_Gn_Gp^T . R_Gn_St
+R_Gp_Bt = R_Gp_St . R_B0_S0^T
