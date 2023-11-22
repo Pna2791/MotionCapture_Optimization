@@ -1,1 +1,0 @@
-python offline.py --name_contains "dipimu_s_09 dipimu_s_10" --ours_path_name_kin output/model-with-dip9and10-cpu.pt --with_acc_sum --render --test_len 30000 --compare_gt --seed 42 --five_sbp 

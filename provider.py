@@ -4,7 +4,7 @@ import torch
 
 pi = np.pi
 FREQ = 60
-k_g = 1024
+k_g = 1.0
 
 # Based from TransPose github repo
 class IMUSet:
@@ -96,7 +96,7 @@ class IMUSet:
         self.data = []
         X = self.X.copy()
 
-        for ind, acc, quat in torch.load("../Hi229/data/AnhPN/root-wireless_2.pt"):
+        for ind, acc, quat in torch.load("../HiPNUC-Hi229/data/AnhPN/root-wireless_3.pt"):
             for i in ind:
                 st = i*9
                 quat[i, :2] = 0
@@ -111,7 +111,7 @@ class IMUSet:
             # X[54:] = np.tile(acc[0], 6)
             # self.data.append(X.copy())
         
-        file_name = open("../Hi229/data/AnhPN/last_wireless.txt").read()
+        file_name = open("../HiPNUC-Hi229/data/AnhPN/last_wireless.txt").read()
         print(file_name)
         for ind, acc, quat in torch.load(file_name):
             for i in ind:

@@ -82,7 +82,6 @@ from provider import IMUSet
 
 
 def get_mean_readings_3_sec():
-    counter = 0
     mean_buffer = []
     for i in range(FREQ * 3):
         mean_buffer.append(imu_set.current_reading())
