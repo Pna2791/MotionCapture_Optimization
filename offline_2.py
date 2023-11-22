@@ -1,22 +1,15 @@
-import pickle
+import pickle, time
 import importlib.util
-import time
 import constants as cst
 import numpy as np
 
 from render_funcs import init_viz
 from learning_utils import set_seed
-from model import load_runner
+from model import load_runner, Rendering
 
 
 set_seed(42)
 
-def viz_point(x, ind):
-    pb_client.resetBasePositionAndOrientation(
-        VIDs[ind],
-        x,
-        [0., 0, 0, 1]
-    )
 
 ''' Load Character Info Moudle '''
 spec = importlib.util.spec_from_file_location("char_info", "amass_char_info.py")
@@ -32,6 +25,7 @@ pb_client, char, _, VIDs, _, _ = init_viz(char_info,
                                           hmap_scale=cst.GRID_SIZE,
                                           compare_gt=False)
 
+rendering = Rendering(pb_client, VIDs)
 
 
 if __name__ == '__main__':
@@ -54,18 +48,19 @@ if __name__ == '__main__':
     rt_runner = load_runner(
         s_init_T_pose,
         character=char,
+        minimal=True
     )
 
     last_root_pos = s_init_T_pose[:3]
     n_length = len(X)
     t_start = time.time()   
-    for frame in X:
-        res = rt_runner.step(frame, last_root_pos)
+    for t, frame in enumerate(X):
+        res = rt_runner.step(frame, last_root_pos, t=t)
         last_root_pos[:] = res['qdq'][:3]
 
         viz_locs = res['viz_locs']
         for sbp_i in range(viz_locs.shape[0]):
-            viz_point(viz_locs[sbp_i, :], sbp_i)
+            rendering.show(viz_locs[sbp_i, :], sbp_i)
 
     print('Duration:', time.time() - t_start)
     print('FPS:', n_length/(time.time()-t_start))

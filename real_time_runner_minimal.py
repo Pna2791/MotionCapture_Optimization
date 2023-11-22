@@ -112,6 +112,7 @@ class RTRunnerMin:
     def step(
         self, cur_imu: np.ndarray,
         prev_root_xyz: np.ndarray,
+        t:int = 0,
     ) -> Dict:
         # input: current imu reading t (72,), previous root xyz (3,)
         # output: state prediction at t - IMU_n_smooth (2 * N_DOFS, )

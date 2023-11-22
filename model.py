@@ -10,7 +10,6 @@ import onnxruntime as ort
 
 
 # Hyper parameters
-max_win_len = 60
 WITH_ACC_SUM = True
 USE_5_SBP = True
 
@@ -29,9 +28,11 @@ def load_onnx_model(onnx_path:str):
     ort_session = ort.InferenceSession(onnx_path, sess_options=sess_options, providers=providers)
     return ort_session
 
+
 def load_runner(
     s_init_T_pose,
     character: SimAgent,
+    max_win_len:int = 60,
     model_path:str = "output/model-with-dip9and10-cpu-dynamic.onnx",
     minimal:bool = True,
 ):
@@ -52,4 +53,17 @@ def load_runner(
             with_acc_sum=WITH_ACC_SUM,
             multi_sbp_terrain_and_correction=False
         )
-        
+
+
+class Rendering:
+    
+    def __init__(self, pb_client, VIDs) -> None:
+        self.pb_client = pb_client
+        self.VIDs = VIDs
+    
+    def show(self, x, ind):
+        self.pb_client.resetBasePositionAndOrientation(
+            self.VIDs[ind],
+            x,
+            [0., 0, 0, 1]
+        )

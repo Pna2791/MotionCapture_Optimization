@@ -1,48 +1,32 @@
 import importlib.util
 import pickle
-import socket
-import threading
 import time, sys
-from datetime import datetime
 import torch
 import numpy as np
 from fairmotion.ops import conversions
 from pygame.time import Clock
 
-from model import load_runner
+from model import load_runner, Rendering
 
-from render_funcs import init_viz, update_height_field_pb, COLOR_OURS
+from render_funcs import init_viz
 # make deterministic
 from learning_utils import set_seed
 import constants as cst
 set_seed(1234567)
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 is_recording = True     # always record imu every 15 sec
 record_buffer = None
 num_imus = 6
 
 process_frame = 60
-FREQ = int(1. / cst.DT)
+FREQ = 60
 
-color = COLOR_OURS
-
-model_name = "output/model-with-dip9and10-cpu.pt"
-USE_5_SBP = True
-WITH_ACC_SUM = True
-MULTI_SBP_CORRECTION = False
-VIZ_H_MAP = True
 MAX_ACC = 10.0
 
 init_grid_np = np.random.uniform(-10.0, 10.0, (cst.GRID_NUM, cst.GRID_NUM))
 init_grid_list = list(init_grid_np.flatten())
 
-input_channels_imu = 6 * (9 + 3)
-if USE_5_SBP:
-    output_channels = 18 * 6 + 3 + 20
-else:
-    output_channels = 18 * 6 + 3 + 8
 
 # make an aligned T pose, such that front is x, left is y, and up is z (i.e. without heading)
 # the IMU sensor at head will be placed the same way, so we can get the T pose's heading (wrt ENU) easily
@@ -105,37 +89,24 @@ def get_transformed_current_reading():
 
     return np.concatenate((R_Gp_Bt.reshape(-1), acc_Gp.reshape(-1)))
 
- 
-def viz_point(x, ind):
-    pb_c.resetBasePositionAndOrientation(
-        p_vids[ind],
-        x,
-        [0., 0, 0, 1]
-    )
 
 
 if __name__ == '__main__':
     imu_set = IMUSet()
 
     ''' Load Character Info Moudle '''
-    spec = importlib.util.spec_from_file_location(
-        "char_info", "amass_char_info.py")
+    spec = importlib.util.spec_from_file_location("char_info", "amass_char_info.py")
     char_info = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(char_info)
 
-    pb_c, c1, _, p_vids, h_id, h_b_id = init_viz(char_info,
-                                                 init_grid_list,
-                                                 hmap_scale=cst.GRID_SIZE,
-                                                 gui=True,
-                                                 viz_h_map=VIZ_H_MAP,
-                                                 color=color,
-                                                 compare_gt=False)
-
+    pb_client, char, _, VIDs, _, _ = init_viz(char_info,
+                                            init_grid_list,
+                                            hmap_scale=cst.GRID_SIZE,
+                                            compare_gt=False)
+    rendering = Rendering(pb_client, VIDs)
 
     clock = Clock()
     print('Keep for 3 seconds ...', end='')
-
-    # calibration: heading reset
     R_and_acc_mean = get_mean_readings_3_sec()
 
     R_Gn_Gp = R_and_acc_mean[:6*9].reshape((6, 3, 3))
@@ -155,10 +126,7 @@ if __name__ == '__main__':
     R_B0_S0 = np.einsum('nij,njk->nik', R_Gp_B0.transpose((0, 2, 1)), R_Gp_S0)
 
 
-    rt_runner = load_runner(
-        s_init_T_pose=s_init_T_pose,
-        character=c1
-    )
+    rt_runner = load_runner(s_init_T_pose, character=char, minimal=True, max_win_len=90)
     last_root_pos = s_init_T_pose[:3]     # assume always start from (0,0,0.9)
 
     print('\tFinish.\nStart estimating poses. Press q to quit')
@@ -169,7 +137,7 @@ if __name__ == '__main__':
     # rt_runner.record_raw_imu(RB_and_acc_t)
     if is_recording:
         record_buffer = RB_and_acc_t.reshape(1, -1)
-    t = 1
+        
     import tkinter as tk
     from scipy.spatial.transform import Rotation
     XX = [100, 0, 200, 0, 200, 100]
@@ -186,66 +154,69 @@ if __name__ == '__main__':
     test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
     data = pickle.load(open(test_file, "rb"))
     XXX = data['imu']
+    t = 0
+    t_start = time.time()
     while imu_set.available():
         RB_and_acc_t = get_transformed_current_reading()
         logs.append(RB_and_acc_t)
 
-        frame = RB_and_acc_t
-        rot = frame[:54].reshape((6, 3, 3))
-        acc = frame[54:].reshape((6, 3))
-        # Display each matrix in the frame
-        canvas.delete("all")
-        canvas.create_text(
-            50,
-            10,
-            text=str(t),
-            font=5
-        )
-        for i in range(6):
-            # Create a Rotation object from the rotation matrix
-            r = Rotation.from_matrix(rot[i])
+        # frame = RB_and_acc_t
+        # rot = frame[:54].reshape((6, 3, 3))
+        # acc = frame[54:].reshape((6, 3))
+        # # Display each matrix in the frame
+        # canvas.delete("all")
+        # canvas.create_text(
+        #     50,
+        #     10,
+        #     text=str(t),
+        #     font=5
+        # )
+        # for i in range(6):
+        #     # Create a Rotation object from the rotation matrix
+        #     r = Rotation.from_matrix(rot[i])
 
-            # Convert the rotation to Euler angles with 'XYZ' order
-            euler_angles = np.degrees(r.as_euler('xyz'))
+        #     # Convert the rotation to Euler angles with 'XYZ' order
+        #     euler_angles = np.degrees(r.as_euler('xyz'))
 
-            for col in range(3):
-                for row in range(3):
-                    value = rot[i][row][col]
-                    canvas.create_text(
-                        XX[i] + col * 40 +50,
-                        YY[i] + row * 20 +30,
-                        text="{:.2f}".format(value),
-                        font=5
-                    )
-                canvas.create_text(
-                    XX[i] + col * 40 +50,
-                    YY[i] + 3 * 20 +30,
-                    text="{}".format(round(euler_angles[col])),
-                    font=5
-                )
-                canvas.create_text(
-                    XX[i] + col * 40 +50,
-                    YY[i] + 4 * 20 +30,
-                    text="{:.2f}".format(acc[i, col]),
-                    font=5
-                )
+        #     for col in range(3):
+        #         for row in range(3):
+        #             value = rot[i][row][col]
+        #             canvas.create_text(
+        #                 XX[i] + col * 40 +50,
+        #                 YY[i] + row * 20 +30,
+        #                 text="{:.2f}".format(value),
+        #                 font=5
+        #             )
+        #         canvas.create_text(
+        #             XX[i] + col * 40 +50,
+        #             YY[i] + 3 * 20 +30,
+        #             text="{}".format(round(euler_angles[col])),
+        #             font=5
+        #         )
+        #         canvas.create_text(
+        #             XX[i] + col * 40 +50,
+        #             YY[i] + 4 * 20 +30,
+        #             text="{:.2f}".format(acc[i, col]),
+        #             font=5
+        #         )
             
-        window.update()
+        # window.update()
         
-        res = rt_runner.step(XXX[t], last_root_pos)
-        # res = rt_runner.step(RB_and_acc_t, last_root_pos)
-        last_root_pos = res['qdq'][:3]
+        
+        res = rt_runner.step(RB_and_acc_t, last_root_pos, t=t)
+        last_root_pos[:] = res['qdq'][:3]
 
         viz_locs = res['viz_locs']
         for sbp_i in range(viz_locs.shape[0]):
-            viz_point(viz_locs[sbp_i, :], sbp_i)
+            rendering.show(viz_locs[sbp_i, :], sbp_i)
         
         
-        # clock.tick(FREQ)
+        # clock.tick(60)
 
         sys.stdout.write(f"\r{imu_set.count}/{imu_set.length}")
         sys.stdout.flush()
         t += 1
 
-    torch.save(logs, 'data/logs.pt')
+    # torch.save(logs, 'data/logs.pt')
     print('Finish.')
+    print('fps:', t/(time.time()-t_start))
