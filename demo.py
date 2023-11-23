@@ -6,7 +6,7 @@ import numpy as np
 from fairmotion.ops import conversions
 from pygame.time import Clock
 
-from model import load_runner, Rendering
+from model import load_runner, Rendering, Monitor
 
 from render_funcs import init_viz
 # make deterministic
@@ -93,6 +93,7 @@ def get_transformed_current_reading():
 
 if __name__ == '__main__':
     imu_set = IMUSet()
+    # monitor = Monitor()
 
     ''' Load Character Info Moudle '''
     spec = importlib.util.spec_from_file_location("char_info", "amass_char_info.py")
@@ -122,6 +123,7 @@ if __name__ == '__main__':
 
     R_Gn_S0 = R_and_acc_mean[: 6 * 9].reshape((6, 3, 3))
     R_Gp_B0 = Rs_aligned_T_pose
+    print("R_Gp_B0", R_Gp_B0.shape, R_Gp_B0)
     R_Gp_S0 = np.einsum('nij,njk->nik', R_Gn_Gp.transpose((0, 2, 1)), R_Gn_S0)
     R_B0_S0 = np.einsum('nij,njk->nik', R_Gp_B0.transpose((0, 2, 1)), R_Gp_S0)
 
@@ -138,18 +140,6 @@ if __name__ == '__main__':
     if is_recording:
         record_buffer = RB_and_acc_t.reshape(1, -1)
         
-    import tkinter as tk
-    from scipy.spatial.transform import Rotation
-    XX = [100, 0, 200, 0, 200, 100]
-    YY = [300, 150, 150, 450, 450, 0]
-        
-        
-    window = tk.Tk()
-    window.title("Frame Display")
-
-    # Create a canvas to display your data
-    canvas = tk.Canvas(window, width=400, height=600)
-    canvas.pack()
 
     test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
     data = pickle.load(open(test_file, "rb"))
@@ -159,57 +149,14 @@ if __name__ == '__main__':
     while imu_set.available():
         RB_and_acc_t = get_transformed_current_reading()
         logs.append(RB_and_acc_t)
-
-        # frame = RB_and_acc_t
-        # rot = frame[:54].reshape((6, 3, 3))
-        # acc = frame[54:].reshape((6, 3))
-        # # Display each matrix in the frame
-        # canvas.delete("all")
-        # canvas.create_text(
-        #     50,
-        #     10,
-        #     text=str(t),
-        #     font=5
-        # )
-        # for i in range(6):
-        #     # Create a Rotation object from the rotation matrix
-        #     r = Rotation.from_matrix(rot[i])
-
-        #     # Convert the rotation to Euler angles with 'XYZ' order
-        #     euler_angles = np.degrees(r.as_euler('xyz'))
-
-        #     for col in range(3):
-        #         for row in range(3):
-        #             value = rot[i][row][col]
-        #             canvas.create_text(
-        #                 XX[i] + col * 40 +50,
-        #                 YY[i] + row * 20 +30,
-        #                 text="{:.2f}".format(value),
-        #                 font=5
-        #             )
-        #         canvas.create_text(
-        #             XX[i] + col * 40 +50,
-        #             YY[i] + 3 * 20 +30,
-        #             text="{}".format(round(euler_angles[col])),
-        #             font=5
-        #         )
-        #         canvas.create_text(
-        #             XX[i] + col * 40 +50,
-        #             YY[i] + 4 * 20 +30,
-        #             text="{:.2f}".format(acc[i, col]),
-        #             font=5
-        #         )
-            
-        # window.update()
-        
+        # monitor.show(R_and_acc_mean)
         
         res = rt_runner.step(RB_and_acc_t, last_root_pos, t=t)
         last_root_pos[:] = res['qdq'][:3]
-
-        viz_locs = res['viz_locs']
-        for sbp_i in range(viz_locs.shape[0]):
-            rendering.show(viz_locs[sbp_i, :], sbp_i)
         
+        # viz_locs = res['viz_locs']
+        # for sbp_i in range(viz_locs.shape[0]):
+        #     rendering.show(viz_locs[sbp_i, :], sbp_i)
         
         # clock.tick(60)
 

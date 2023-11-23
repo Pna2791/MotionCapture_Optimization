@@ -1,7 +1,7 @@
 from multiprocessing import Process
 import time, sys, pickle
-import numpy as np 
-from sensors import IMU
+
+from sensor.sensor import IMU_set
 
 
 def show(mess):
@@ -9,7 +9,7 @@ def show(mess):
     sys.stdout.flush()
 
 if __name__ == '__main__': 
-    imu_set = IMU()
+    imu_set = IMU_set()
     imu_set.is_running = False
     
     sensor_process = Process(target=imu_set.processing) 

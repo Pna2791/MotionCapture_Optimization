@@ -1,15 +1,13 @@
-import pickle, time
+import time, keyboard
 import importlib.util
 import constants as cst
 import numpy as np
 
 from render_funcs import init_viz
 from learning_utils import set_seed
-from model import load_runner, Rendering
-from data_queue_provider import Data_provider
+from model import load_runner
+from sensor.sensor import IMU_set
 from multiprocessing import Process
-
-
 set_seed(42)
 
 
@@ -28,16 +26,10 @@ _, char, _, _, _, _ = init_viz(char_info,
                                           compare_gt=False)
 
 
-
 if __name__ == '__main__':
-    # test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
-    # data = pickle.load(open(test_file, "rb"))
-
-    # frames = 3000
-    # X = data['imu'][:frames]
-    data_provider = Data_provider()
-    sub_processor = Process(target=data_provider.processing)
-    sub_processor.start()
+    imu_set = IMU_set()
+    sensor_process = Process(target=imu_set.processing)
+    sensor_process.start()
     
     
     s_init_T_pose = np.zeros(cst.n_dofs * 2)
@@ -47,19 +39,23 @@ if __name__ == '__main__':
     rt_runner = load_runner(
         s_init_T_pose,
         character=char,
-        minimal=True
+        minimal=True,
+        max_win_len=90
     )
-
     last_root_pos = s_init_T_pose[:3]
-    # n_length = len(X)
-    n_length = 3000
-    t_start = time.time()   
-    # for t, frame in enumerate(X):
-    while data_provider.available():
-        frame = data_provider.get()
+    imu_set.clear()
+    
+    flag_runing = True
+    while flag_runing:
+        while imu_set.empty():
+            # if keyboard.is_pressed('q'):
+            #     flag_runing = False
+            #     break
+            time.sleep(0.001)
+        
+        frame = imu_set.get()
         res = rt_runner.step(frame, last_root_pos)
         last_root_pos[:] = res['qdq'][:3]
 
-    print('Duration:', time.time() - t_start)
-    print('FPS:', n_length/(time.time()-t_start))
-    sub_processor.kill()
+
+    sensor_process.kill()

@@ -8,7 +8,7 @@ from fairmotion.ops import conversions
 MAX_ACC = 10.0
 
 
-class IMU(object): 
+class IMU_set(object): 
  
     def __init__(self,
                  portx='/dev/ttyUSB0',
@@ -45,12 +45,24 @@ class IMU(object):
             for frame in data:
                 acc = frame['acc']
                 quat = frame['quat']
-                mean_buffer.append(
-                    np.concatenate((
-                        conversions.Q2R(quat).reshape(-1),
-                        acc.reshape(-1)
-                    ))
-                )
+                if path == 'data/root.pkl':
+                    # quat[:, :2] = 0
+                    euler = conversions.Q2E(quat)
+                    euler[:, :2] = 0
+                    
+                    mean_buffer.append(
+                        np.concatenate((
+                            conversions.E2R(euler).reshape(-1),
+                            acc.reshape(-1)
+                        ))
+                    )
+                else:
+                    mean_buffer.append(
+                        np.concatenate((
+                            conversions.Q2R(quat).reshape(-1),
+                            acc.reshape(-1)
+                        ))
+                    )
             return np.array(mean_buffer).mean(axis=0)
         
         sample = {
@@ -102,6 +114,9 @@ class IMU(object):
         
     
     def process(self, data):
+        if len(data['id']) < 6:
+            print(data['id'])
+            return
         try:
             acc = data['acc']
             acc = np.array(
