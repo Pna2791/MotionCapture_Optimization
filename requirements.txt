@@ -13,5 +13,7 @@ networkx
 joblib
 pathlib
 einops
+keyboard
+serial
 onnxruntime-gpu
 onnxruntime-extensions
