@@ -1,0 +1,7 @@
+__pycache__/*
+*/__pycache__/*
+data/*
+!data/config_wireless.json
+
+output/*
+test.py
