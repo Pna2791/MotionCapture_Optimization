@@ -8,7 +8,7 @@ import random
 import re
 import time
 from datetime import datetime
-
+from memory_profiler import profile
 from typing import Dict, Union, Tuple
 import time
 import constants as cst
@@ -18,6 +18,8 @@ import imageio
 import numpy as np
 from fairmotion.ops import conversions
 from torch import nn
+import os
+import psutil
 
 from bullet_agent import SimAgent
 from real_time_runner import RTRunner
@@ -49,13 +51,15 @@ torch.set_printoptions(threshold=10_000, precision=10)"""
 
 
 parser = argparse.ArgumentParser(description='Run our model and related works models')
-parser.add_argument('--ours_path_name_kin', type=str, default="output/model-with-dip9and10-cpu-dynamic.onnx",
+parser.add_argument('--ours_path_name_kin', type=str, default="output/model-with-dip9and10-cpu.pt",
                     help='')
 parser.add_argument('--test_len', type=int, default=30000,
                     help='')
 parser.add_argument('--render', default=True, action='store_true',
                     help='')
-parser.add_argument('--compare_gt', default=True, action='store_true',
+parser.add_argument('--compare_gt', default=False, action='store_true',
+                    help='')
+parser.add_argument('--check_onnx', default=False, action='store_true',
                     help='')
 parser.add_argument('--seed', type=int, default=42,
                     help='')
@@ -88,18 +92,38 @@ GRID_NUM = int(MAP_BOUND/cst.GRID_SIZE) * 2
 
 
 def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.ndarray):
-    def load_model(onnx_path):
-        onnx_model = onnx.load(onnx_path)
-        ort_session = onnxruntime.InferenceSession(onnx_path,providers = ['CPUExecutionProvider'])
-        return ort_session
+    if args.check_onnx:
+        def load_model(onnx_path):
+            onnx_model = onnx.load(onnx_path)
+            ort_session = onnxruntime.InferenceSession(onnx_path,providers = ['CPUExecutionProvider'])
+            return ort_session
+    else:
+        def load_model(name):
+            from simple_transformer_with_state import TF_RNN_Past_State
+            input_channels_imu = 6 * (9 + 3)
+            if USE_5_SBP:
+                output_channels = 18 * 6 + 3 + 20
+            else:
+                output_channels = 18 * 6 + 3 + 8
+
+            model = TF_RNN_Past_State(
+                input_channels_imu, output_channels,
+                rnn_hid_size=512,
+                tf_hid_size=1024, tf_in_dim=256,
+                n_heads=16, tf_layers=4,
+                dropout=0.0, in_dropout=0.0,
+                past_state_dropout=0.8,
+                with_acc_sum=WITH_ACC_SUM
+            )
+            model.load_state_dict(torch.load(name))
+            return model
 
     model_name = args.ours_path_name_kin
     m = load_model(model_name)
 
     #ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt(char, s_gt, imu, m, 40)
-    ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt_minimal(char, s_gt, imu, m, 40)
-
-    return ours_out, c_out, viz_locs_out
+    ours_out, c_out, viz_locs_out, model_time_check = test_run_ours_gpt_v4_with_c_rt_minimal(char, s_gt, imu, m, 40)
+    return ours_out, c_out, viz_locs_out, model_time_check
 
 
 def test_run_ours_gpt_v4_with_c_rt_minimal(
@@ -108,7 +132,7 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
         imu: np.array,
         m: nn.Module,
         max_win_len: int
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray,float]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
 
     # use real time runner with offline data
     rt_runner = RTRunnerMin(
@@ -119,6 +143,7 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
     m_len = imu.shape[0]
     s_traj_pred = np.zeros((m_len, cst.n_dofs * 2))
     s_traj_pred[0] = s_gt[0]
+    model_time = 0
 
     c_traj_pred = np.zeros((m_len, rt_runner.n_sbps * 4))
     viz_locs_seq = [np.ones((rt_runner.n_sbps, 3)) * 100.0]
@@ -139,6 +164,7 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
         c_traj_pred[t + 1, :] = res['ct']
 
         viz_locs = res['viz_locs']
+        model_runtime = res['time']
         for sbp_i in range(viz_locs.shape[0]):
             viz_point(viz_locs[sbp_i, :], sbp_i)
         viz_locs_seq.append(viz_locs)
@@ -155,7 +181,7 @@ def test_run_ours_gpt_v4_with_c_rt_minimal(
     viz_locs_seq[0:-trim, :, :] = viz_locs_seq[trim:, :, :]
     viz_locs_seq[-trim:, :, :] = viz_locs_seq[-trim-1, :, :]
 
-    return s_traj_pred, c_traj_pred, viz_locs_seq
+    return s_traj_pred, c_traj_pred, viz_locs_seq, model_runtime
 
 
 def test_run_ours_gpt_v4_with_c_rt(
@@ -314,9 +340,12 @@ test_files_included = []
 
 test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
 data = pickle.load(open(test_file, "rb"))
-frames = 500
-X = data['imu'][:frames]
-Y = data['nimble_qdq'][:frames]
+frames = 1200
+#begin = random.randint(1, data['nimble_qdq'].shape[0]-frames)
+#X = data['imu'][begin:begin+frames]
+#Y = data['nimble_qdq'][begin:begin+frames]
+X = data['imu'][6000:6000+frames]
+Y = data['nimble_qdq'][6000:6000+frames]
 
 # to make all motion equal in stat compute, and run faster
 if Y.shape[0] > TEST_LEN:
@@ -334,11 +363,19 @@ Y = Y[start: end, :]
 Y[:, 2] += 0.05       # move motion root 5 cm up
 gt_list.append(Y)
 
-t_start = time.time()
 n_length = len(X)
-ours, C, ours_c_viz = run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, c1)
-print('Duration:', time.time() - t_start)
+t_start = time.time()
+ours, C, ours_c_viz, model_time = run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, c1)
+print('Model runtime:', model_time)
+print('Engine runtime:', time.time() - t_start)
 print('FPS:', n_length/(time.time()-t_start))
+process = psutil.Process(os.getpid())
+memory_use = process.memory_info().vms  #bytes
+memory_use_mb = memory_use / (1024 * 1024)
+
+print("Memory usage: ",memory_use_mb)
+
+
 #return ours_out, c_out, viz_locs_out
 ours_list.append(ours)
 ours_c_viz_list.append(ours_c_viz)
@@ -350,35 +387,35 @@ if args.compare_gt:
                      "tp_list": tp_list,
                      "dip_list": dip_list},
                     handle, protocol=pickle.HIGHEST_PROTOCOL)
-losses_angle = []
-losses_j_pos = []
-losses_2s_root = []
-losses_5s_root = []
-losses_10s_root = []
-losses_jerk_max = []
-losses_jerk_root = []
-for i in range(len(gt_list)):
-    traj_1 = post_processing_our_model(c1, gt_list[i])
-    traj_2 = post_processing_our_model(c1, ours_list[i])
+    losses_angle = []
+    losses_j_pos = []
+    losses_2s_root = []
+    losses_5s_root = []
+    losses_10s_root = []
+    losses_jerk_max = []
+    losses_jerk_root = []
+    for i in range(len(gt_list)):
+        traj_1 = post_processing_our_model(c1, gt_list[i])
+        traj_2 = post_processing_our_model(c1, ours_list[i])
 
-    ours_c_viz = ours_c_viz_list[i] if len(ours_c_viz_list) > 0 else None
-    res_tuple = viz_2_trajs_and_return_fk_records_with_sbp(
-        c2, c1, traj_1, traj_2, 30, 6, RENDER, ours_c_viz)  # first 0.5s uninteresting
+        ours_c_viz = ours_c_viz_list[i] if len(ours_c_viz_list) > 0 else None
+        res_tuple = viz_2_trajs_and_return_fk_records_with_sbp(
+            c2, c1, traj_1, traj_2, 30, 6, RENDER, ours_c_viz)  # first 0.5s uninteresting
 
-    losses_angle.append(loss_angle(*res_tuple))
-    losses_j_pos.append(loss_j_pos(*res_tuple))
-    losses_2s_root.append(loss_root_dist_pos(*res_tuple, t=2.0))
-    losses_5s_root.append(loss_root_dist_pos(*res_tuple, t=5.0))
-    losses_10s_root.append(loss_root_dist_pos(*res_tuple, t=10.0))
-    losses_jerk_max.append(loss_max_jerk(*res_tuple))
-    losses_jerk_root.append(loss_root_jerk(*res_tuple))
+        losses_angle.append(loss_angle(*res_tuple))
+        losses_j_pos.append(loss_j_pos(*res_tuple))
+        losses_2s_root.append(loss_root_dist_pos(*res_tuple, t=2.0))
+        losses_5s_root.append(loss_root_dist_pos(*res_tuple, t=5.0))
+        losses_10s_root.append(loss_root_dist_pos(*res_tuple, t=10.0))
+        losses_jerk_max.append(loss_max_jerk(*res_tuple))
+        losses_jerk_root.append(loss_root_jerk(*res_tuple))
 
-print(np.mean(losses_angle))
-print(np.mean(losses_j_pos))
-print(np.mean(losses_2s_root))
-print(np.mean(losses_5s_root))
-print(np.mean(losses_10s_root))
-print(np.mean(losses_jerk_max))
-print(np.mean(losses_jerk_root))
+    print(np.mean(losses_angle))
+    print(np.mean(losses_j_pos))
+    print(np.mean(losses_2s_root))
+    print(np.mean(losses_5s_root))
+    print(np.mean(losses_10s_root))
+    print(np.mean(losses_jerk_max))
+    print(np.mean(losses_jerk_root))
 
 #githubcode = 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

@@ -427,12 +427,6 @@ class RTRunner:
             len_imu = in_imu.shape[0]
             in_s_and_c = np.array(self.s_and_c_in_buffer[-len_imu:])
 
-            # x_imu = torch.tensor(in_imu).float().unsqueeze(0)
-            # x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0)
-
-            # x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
-            # x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
-
             x_imu = torch.tensor(in_imu).float().unsqueeze(0)
             x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0)
             x_imu = x_imu.cpu().numpy()
