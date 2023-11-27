@@ -8,7 +8,6 @@ import random
 import re
 import time
 from datetime import datetime
-from memory_profiler import profile
 from typing import Dict, Union, Tuple
 import time
 import constants as cst
@@ -94,8 +93,9 @@ GRID_NUM = int(MAP_BOUND/cst.GRID_SIZE) * 2
 def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.ndarray):
     if args.check_onnx:
         def load_model(onnx_path):
-            onnx_model = onnx.load(onnx_path)
-            ort_session = onnxruntime.InferenceSession(onnx_path,providers = ['CPUExecutionProvider'])
+            sess_options = onnxruntime.SessionOptions()
+            sess_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+            ort_session = onnxruntime.InferenceSession(onnx_path,sess_options,providers = ['CUDAExecutionProvider','CPUExecutionProvider'])
             return ort_session
     else:
         def load_model(name):
@@ -116,11 +116,11 @@ def run_ours_wrapper_with_c_rt(imu, s_gt, model_name, char) -> (np.ndarray, np.n
                 with_acc_sum=WITH_ACC_SUM
             )
             model.load_state_dict(torch.load(name))
-            return model
+            return model.cuda()
 
     model_name = args.ours_path_name_kin
     m = load_model(model_name)
-
+    m.to('cuda')
     #ours_out, c_out, viz_locs_out = test_run_ours_gpt_v4_with_c_rt(char, s_gt, imu, m, 40)
     ours_out, c_out, viz_locs_out, model_time_check = test_run_ours_gpt_v4_with_c_rt_minimal(char, s_gt, imu, m, 40)
     return ours_out, c_out, viz_locs_out, model_time_check
@@ -307,6 +307,8 @@ def viz_point(x, ind):
 
 print("[AnhPN]", "==="*30)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 ''' Load Character Info Moudle '''
 spec = importlib.util.spec_from_file_location(
     "char_info", "amass_char_info.py")
@@ -340,23 +342,25 @@ test_files_included = []
 
 test_file = 'data/preprocessed_DIP_IMU_v1/dipimu_s_03_01.pkl'
 data = pickle.load(open(test_file, "rb"))
-frames = 1200
+frames = 5000
 #begin = random.randint(1, data['nimble_qdq'].shape[0]-frames)
 #X = data['imu'][begin:begin+frames]
 #Y = data['nimble_qdq'][begin:begin+frames]
 X = data['imu'][6000:6000+frames]
 Y = data['nimble_qdq'][6000:6000+frames]
 
-# to make all motion equal in stat compute, and run faster
-if Y.shape[0] > TEST_LEN:
-    rand_start = random.randrange(0, Y.shape[0] - TEST_LEN)
-    start = rand_start
-    end = rand_start + TEST_LEN
-else:
-    start = 0
-    end = Y.shape[0]
-X = X[start: end, :]
-Y = Y[start: end, :]
+# # to make all motion equal in stat compute, and run faster
+# if Y.shape[0] > TEST_LEN:
+#     rand_start = random.randrange(0, Y.shape[0] - TEST_LEN)
+#     start = rand_start
+#     end = rand_start + TEST_LEN
+# else:
+#     start = 0
+#     end = Y.shape[0]
+# start = 0
+# end = 5000
+# X = X[start: end, :]
+# Y = Y[start: end, :]
 
 # for clearer visualization, amass data not calibrated well wrt floor
 # translation errors are computed from displacement not absolute Y
@@ -370,7 +374,7 @@ print('Model runtime:', model_time)
 print('Engine runtime:', time.time() - t_start)
 print('FPS:', n_length/(time.time()-t_start))
 process = psutil.Process(os.getpid())
-memory_use = process.memory_info().vms  #bytes
+memory_use = process.memory_info().rss  #bytes
 memory_use_mb = memory_use / (1024 * 1024)
 
 print("Memory usage: ",memory_use_mb)

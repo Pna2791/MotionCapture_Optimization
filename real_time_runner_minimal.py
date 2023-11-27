@@ -150,8 +150,8 @@ class RTRunnerMin:
 
 
         if self.check_onnx:
-            x_imu = np.array(in_imu, dtype=np.float16)[np.newaxis, :]
-            x_s_and_c = np.array(in_s_and_c, dtype=np.float16)[np.newaxis, :]
+            x_imu = np.array(in_imu, dtype=np.float32)[np.newaxis, :]
+            x_s_and_c = np.array(in_s_and_c, dtype=np.float32)[np.newaxis, :]
             ort_inputs = {'imu_input': x_imu, 's_input': x_s_and_c}
 
             t_start = time.time()
@@ -160,8 +160,8 @@ class RTRunnerMin:
             y = ort_outputs[0]
             st_2axis_root_v_and_c = y.squeeze(0)[-1, :]
         else:
-            x_imu = torch.tensor(in_imu).float().unsqueeze(0)
-            x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0)
+            x_imu = torch.tensor(in_imu).float().unsqueeze(0).cuda()
+            x_s_and_c = torch.tensor(in_s_and_c).float().unsqueeze(0).cuda()
             t_start = time.time()
             y = self.model(x_imu, x_s_and_c).cpu()
             self.duration = self.duration + time.time() - t_start
