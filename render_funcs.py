@@ -10,6 +10,7 @@ from bullet_agent import SimAgent
 COLOR_OURS = [1.0, 0.8, 0.0, 1.0]
 COLOR_JOINT = [0.6, 0.6, 0.6, 1.0]
 COLOR_GT = [0.1, 0.7, 0.1, 0.4]
+COLOR_GT = [1.0, 0.0, 1.0, 1.0]
 COLOR_TRANSPOSE = [1.0, 0.75, 0.8, 1.0]
 
 

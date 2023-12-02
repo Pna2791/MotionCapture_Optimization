@@ -189,18 +189,18 @@ def test_run_ours_gpt_v4_with_c_rt(
 
     viz_locs_seq = [np.ones((rt_runner.n_sbps, 3)) * 100.0]
 
-    import tkinter as tk
-    from scipy.spatial.transform import Rotation
-    XX = [100, 0, 200, 0, 200, 100]
-    YY = [300, 150, 150, 450, 450, 0]
+    # import tkinter as tk
+    # from scipy.spatial.transform import Rotation
+    # XX = [100, 0, 200, 0, 200, 100]
+    # YY = [300, 150, 150, 450, 450, 0]
         
         
-    window = tk.Tk()
-    window.title("Frame Display")
+    # window = tk.Tk()
+    # window.title("Frame Display")
 
-    # Create a canvas to display your data
-    canvas = tk.Canvas(window, width=400, height=600)
-    canvas.pack()
+    # # Create a canvas to display your data
+    # canvas = tk.Canvas(window, width=400, height=600)
+    # canvas.pack()
     root_rot = np.array([
         [0, 0, 1],
         [1, 0, 0],
@@ -212,46 +212,46 @@ def test_run_ours_gpt_v4_with_c_rt(
     for t in range(0, m_len-1):
         
         frame = imu[t, :]
-        rot = frame[:54].reshape((6, 3, 3))
-        acc = frame[54:].reshape((6, 3))
-        # Display each matrix in the frame
-        canvas.delete("all")
-        canvas.create_text(
-            50,
-            10,
-            text=str(t),
-            font=5
-        )
-        for i in range(6):
-            # Create a Rotation object from the rotation matrix
-            r = Rotation.from_matrix(rot[i].dot(root_rot))
+        # rot = frame[:54].reshape((6, 3, 3))
+        # acc = frame[54:].reshape((6, 3))
+        # # Display each matrix in the frame
+        # canvas.delete("all")
+        # canvas.create_text(
+        #     50,
+        #     10,
+        #     text=str(t),
+        #     font=5
+        # )
+        # for i in range(6):
+        #     # Create a Rotation object from the rotation matrix
+        #     r = Rotation.from_matrix(rot[i].dot(root_rot))
 
-            # Convert the rotation to Euler angles with 'XYZ' order
-            euler_angles = np.degrees(r.as_euler('xyz'))
+        #     # Convert the rotation to Euler angles with 'XYZ' order
+        #     euler_angles = np.degrees(r.as_euler('xyz'))
 
-            for col in range(3):
-                for row in range(3):
-                    value = rot[i][row][col]
-                    canvas.create_text(
-                        XX[i] + col * 40 +50,
-                        YY[i] + row * 20 +30,
-                        text="{:.2f}".format(value),
-                        font=5
-                    )
-                canvas.create_text(
-                    XX[i] + col * 40 +50,
-                    YY[i] + 3 * 20 +30,
-                    text="{}".format(round(euler_angles[col])),
-                    font=5
-                )
-                canvas.create_text(
-                    XX[i] + col * 40 +50,
-                    YY[i] + 4 * 20 +30,
-                    text="{:.2f}".format(acc[i, col]),
-                    font=5
-                )
+        #     for col in range(3):
+        #         for row in range(3):
+        #             value = rot[i][row][col]
+        #             canvas.create_text(
+        #                 XX[i] + col * 40 +50,
+        #                 YY[i] + row * 20 +30,
+        #                 text="{:.2f}".format(value),
+        #                 font=5
+        #             )
+        #         canvas.create_text(
+        #             XX[i] + col * 40 +50,
+        #             YY[i] + 3 * 20 +30,
+        #             text="{}".format(round(euler_angles[col])),
+        #             font=5
+        #         )
+        #         canvas.create_text(
+        #             XX[i] + col * 40 +50,
+        #             YY[i] + 4 * 20 +30,
+        #             text="{:.2f}".format(acc[i, col]),
+        #             font=5
+        #         )
             
-        window.update()
+        # window.update()
         res = rt_runner.step(frame, s_traj_pred[t, :3], t=t)
 
         s_traj_pred[t + 1, :] = res['qdq']
@@ -387,8 +387,8 @@ else:
     start = 0
     end = Y.shape[0]
 
-start = 200
-end = 15000
+start = 500
+end = 1500
 X = X[start: end, :]
 Y = Y[start: end, :]
 # print(Y[0])
@@ -404,6 +404,8 @@ Y[:, 2] += 0.05       # move motion root 5 cm up
 t_start = time.time()
 n_length = len(X)
 ours, C, ours_c_viz = run_ours_wrapper_with_c_rt(X, Y, args.ours_path_name_kin, c1)
+
+torch.save([Y, ours, ours_c_viz], 'data/test.pt')
 
 print('Duration:', time.time() - t_start)
 print('fps:', n_length/(time.time() - t_start))
