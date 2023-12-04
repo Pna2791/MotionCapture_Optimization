@@ -1,18 +1,12 @@
-# Transformer Inertial Poser (TIP): Real-time Human Motion Reconstruction from Sparse IMUs with Simultaneous Terrain Generation Optimization
+## Motion Capture Optimization
+This is the Final Project Captone of FPT University.
 
-This is the Python implementation accompanying our TIP paper at SIGGRAPH Asia 2022.
+**Authors:** Anh. Phan Ngoc, Nguyen. Nguyen Trung.
 
-Arxiv: https://arxiv.org/abs/2203.15720
+**Advisor:** PhD. Nguyen. Le Phu
 
-Video: https://youtu.be/rXb6SaXsnc0
-
-Copyright 2022 Meta Inc. and Stanford University
-
-Licensed under the CC-BY-NC-4.0 License
 
 ## Environment Setup
-
-(Tested on Ubuntu 22.04; Might work on Windows with some minor modifications)
 
 1.Go to (https://www.anaconda.com/download/) and install the Python 3 version of Anaconda or Miniconda.
 
@@ -47,8 +41,18 @@ cd fairmotion
 pip install -e .
 ```
 
-## Demo
+## Demo Offline
 
 We have created a special demo, to see it, run the command below::
 
-```python offline.py```
+```python demo_offline.py```
+
+We can using realtime if have a set of six IMU sensors of HiPNUC. Run Realtime by command:
+
+```python demo_online.py```
+    
+## Information
+
+You can watch some of my videos [here](https://www.youtube.com/playlist?list=PLzFeP9tMTVBPWqaOVx13h6u3O4Mb1mzOc).
+
+You can find our official repo at [here](https://github.com/Pna2791/MotionCapture_Optimization/tree/live)
